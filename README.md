@@ -1,8 +1,7 @@
 # ardrone_autopilot
 
-Boris and Ilya's version, based on branch "go" by Georgiy
-
+Georgiy Kozhevnikov's version of ardrone_autopilot.
 Differences:
-    Detection of colored target (3 circles) and estimation of distance to it;
-    PID controller code for front camera, movement in three axes (beta)
+	*Dynamic bounding box
+	*PD based controller
 
