@@ -1,5 +1,5 @@
-
-/*  
+//TEST
+/*
     controller.cpp
   ----------------------------------------------------------------------------
   | Receives the image from the drone and sends it to the compVision.cpp,    |
@@ -38,11 +38,11 @@ void onEnableCtrl(const std_msgs::Empty& toggle_msg) {
     if (control.enabled)
         std::cout << "Target autopilot enabled.\n";
     else
-        std::cout << "Target autopilot disabled.\n"; 
+        std::cout << "Target autopilot disabled.\n";
 }
 
 
-// Extract information from incoming message to the control object. 
+// Extract information from incoming message to the control object.
 
 void parseArray(const std_msgs::Float32MultiArray& msg) {
     if (msg.data.size() != 0) {
@@ -56,8 +56,8 @@ void parseArray(const std_msgs::Float32MultiArray& msg) {
             circle.height = msg.data[i++];
             circle.inTheBox = !msg.data[i++];
             control.targ.push_back(Circle(circle));
-        }   
-    }   
+        }
+    }
 }
 
 
@@ -70,20 +70,20 @@ void controller(geometry_msgs::Twist& msg) {
     float circleRadius = 0.0;
     float middleX = (control.box.right+control.box.left) / 2;
     float middleY = (control.box.top+control.box.bottom) / 2;
- 
+
     // Calculate X and Y errors of the circles that are not in the box.
 
     for (const auto& circle : control.targ) {
 
         if (!circle.inTheBox) {
-		    
+
 		float Xerr = circle.x - middleX;
 		errorsX.push_back(Xerr);
 
 		float Yerr = circle.y - middleY;
 		errorsY.push_back(Yerr);
-		
-		std::cout << "YERR : " << Yerr << " XERR: " << Xerr << "\n"; 
+
+		std::cout << "YERR : " << Yerr << " XERR: " << Xerr << "\n";
         }
         circleRadius = circle.width;
     }
@@ -101,8 +101,8 @@ void controller(geometry_msgs::Twist& msg) {
             ++numError;
         }
         avError = (summError / numError) / control.box.left;
-	
-/*      It's also possible to change the PID coefficient with 
+
+/*      It's also possible to change the PID coefficient with
          the size of the target to make drone more accurate.
 
         Not used, optionally. Also should be added in the Y part.
@@ -136,7 +136,7 @@ void controller(geometry_msgs::Twist& msg) {
             msg.linear.z = std::min(1.0, std::max(-1.0, -vel * 10.0));
         }
     }
-    
+
     if (circleRadius >= 1.0)
     {
         float vel = control.pid.calculate( std::max(-1.0, std::min(1.0, ((circleRadius - (float)IDEAL_RADIUS) / (float)MAXIMUM_RADIUS) * 5.0)), 2);
@@ -170,15 +170,15 @@ void onTarget(const std_msgs::Float32MultiArray& msg) {
 		    control.targ.clear();
 		// Handle received information.
 		    parseArray(msg);
-		
+
 		// Calculate delta time.
 		    control.pid.dt = (ros::Time::now() - control.lastLoop).toSec();
 		    control.lastLoop = ros::Time::now();
 
 		// Run the controller.
 		    controller(message);
-		    
-		// Circle and box information output		    
+
+		// Circle and box information output
 		    std::cout << "-----------------------\n";
 		    std::cout << "BOX LEFT: " << control.box.left << '\n';
 		    std::cout << "BOX RIGHT: " << control.box.right << '\n';
@@ -189,11 +189,11 @@ void onTarget(const std_msgs::Float32MultiArray& msg) {
 			std::cout << circle << '\n';
 		    }
 		    std::cout << "-----------------------\n";
-			
+
                 // Send the message.
 		    control.cmdPublisher.publish(message);
 	    }
-	    
+
 	} else {
 	// Reset saved information if the controller was turned off.
         control.pid.integralX = 0;
@@ -213,7 +213,7 @@ void onBox(const std_msgs::Float32MultiArray& msg) {
         control.imgRows = msg.data[4];
         control.imgCols = msg.data[5];
 }
-        
+
 
 // Changing PID coefficients by buttons.
 
@@ -258,32 +258,32 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "controller");
     ros::NodeHandle node;
-    
-    ros::Subscriber boxSub = 
+
+    ros::Subscriber boxSub =
             node.subscribe("box", 1, onBox);
 
-    ros::Subscriber enableSub = 
+    ros::Subscriber enableSub =
             node.subscribe("controller/enable", 5, onEnableCtrl);
 
 
-    ros::Subscriber targetSub = 
+    ros::Subscriber targetSub =
             node.subscribe("target", 5, onTarget);
 
-    ros::Subscriber pidDecreaseSub = 
+    ros::Subscriber pidDecreaseSub =
             node.subscribe("pid/decrease", 5, onPidD);
 
-    ros::Subscriber pidIncreaseSub = 
+    ros::Subscriber pidIncreaseSub =
             node.subscribe("pid/increase", 5, onPidI);
 
-    ros::Subscriber bottomCameraSub = 
+    ros::Subscriber bottomCameraSub =
             node.subscribe("ardrone/bottom/camera_info", 5, onBottomCamera);
-   
-    ros::Subscriber frontCameraSub = 
+
+    ros::Subscriber frontCameraSub =
             node.subscribe("ardrone/front/camera_info", 5, onFrontCamera);
 
     control.cmdPublisher =
             node.advertise<geometry_msgs::Twist>("cmd_vel", 1000);
-    
+
     ros::spin();
 
     return 0;

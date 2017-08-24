@@ -1,5 +1,5 @@
-
-/*  
+//TEST
+/*
     imgHelper.h
   ---------------------------------------------------
   | Contains some utility structures and functions  |
@@ -31,7 +31,7 @@ struct CirclesMessage {
 extern void processImage(cv::Mat&, CirclesMessage&);
 
 
-// Main structure of imageHandler.cpp, that contains 
+// Main structure of imageHandler.cpp, that contains
 //  some image information, flags and publishers.
 
 struct ImageHandler
