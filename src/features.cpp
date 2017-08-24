@@ -1,11 +1,11 @@
 #include <algorithm>
-#include <iostream>
 #include <cmath>
-#include <stdio.h>
-#include <opencv2/opencv.hpp>
+#include <iostream>
 #include <opencv2/core.hpp>
-#include <opencv2/imgcodecs/imgcodecs.hpp>
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgcodecs/imgcodecs.hpp>
+#include <opencv2/opencv.hpp>
+#include <stdio.h>
 
 const int circleRadius = 50;
 
@@ -38,11 +38,10 @@ void processImage(cv::Mat& img) {
     cv::Mat gray;
     //img = cv::imread("../src/circles-new3.jpg");
     cv::cvtColor(img, gray, CV_BGR2GRAY);
-    // smooth it, otherwise a lot of false circles may be detected
     cv::GaussianBlur( gray, gray, cv::Size(9, 9), 2, 2 );
     std::vector<cv::Vec3f> circles;
     HoughCircles(gray, circles, CV_HOUGH_GRADIENT, 2, 20, 100, 90);
-    if (circles.size() != 3) 
+    if (circles.size() != 3)
         return;
     for(size_t i = 0; i < circles.size(); i++ ) {
         cv::Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
