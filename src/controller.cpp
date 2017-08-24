@@ -24,13 +24,12 @@
 #include <std_msgs/Empty.h>
 #include <std_msgs/String.h>
 #include <geometry_msgs/Twist.h>
-
+#include "constants.h"
 
 
 // Global control object to have an easy access to some parameters.
 
 struct ControlCenter control;
-
 
 // Enable/disable controller by button 'N'.
 
@@ -49,6 +48,7 @@ void parseArray(const std_msgs::Float32MultiArray& msg) {
     if (msg.data.size() != 0) {
         size_t i = 0;
         Circle circle;
+        std::cout << "parse" << std::endl;
         while (i < msg.data.size()) {
             circle.x = msg.data[i++];
             circle.y = msg.data[i++];
@@ -67,6 +67,7 @@ void controller(geometry_msgs::Twist& msg) {
 
     std::vector<float> errorsX;
     std::vector<float> errorsY;
+    float circleRadius = 0.0;
     float middleX = (control.box.right+control.box.left) / 2;
     float middleY = (control.box.top+control.box.bottom) / 2;
  
@@ -84,8 +85,8 @@ void controller(geometry_msgs::Twist& msg) {
 		
 		std::cout << "YERR : " << Yerr << " XERR: " << Xerr << "\n"; 
         }
+        circleRadius = circle.width;
     }
-
     // Controlling.
     // X part.
 
@@ -111,7 +112,7 @@ void controller(geometry_msgs::Twist& msg) {
 
 	// Calculate necessary acceleration (velocity indeed, but it requires double PID).
 
-        float acc = control.pid.calculate(avError, true);
+        float acc = control.pid.calculate(avError, 0);
 
 	// Send the command to the drone (the command changes drone's tilt).
 
@@ -128,8 +129,22 @@ void controller(geometry_msgs::Twist& msg) {
             ++numError;
         }
         avError = (summError / numError) / control.box.top;
-        float vel = control.pid.calculate(avError, false);
-        msg.linear.x = -vel;
+        float vel = control.pid.calculate(avError, 1);
+        if (control.isBottomCamera) {
+            msg.linear.x = -vel;
+        } else {
+            msg.linear.z = std::min(1.0, std::max(-1.0, -vel * 10.0));
+        }
+    }
+    
+    if (circleRadius >= 1.0)
+    {
+        float vel = control.pid.calculate( std::max(-1.0, std::min(1.0, ((circleRadius - (float)IDEAL_RADIUS) / (float)MAXIMUM_RADIUS) * 5.0)), 2);
+        if (control.isBottomCamera) {
+            msg.linear.z = std::min(1.0, std::max(-1.0, -vel * 10.0));
+        } else {
+            msg.linear.x = -vel;
+        }
     }
 
     // Output sended values to the console.
@@ -228,6 +243,16 @@ void onPidI(const std_msgs::String& str) {
     }
 }
 
+void onBottomCamera(const sensor_msgs::CameraInfoConstPtr& cam_info)
+{
+    control.isBottomCamera = true;
+}
+
+void onFrontCamera(const sensor_msgs::CameraInfoConstPtr& cam_info)
+{
+    control.isBottomCamera = false;
+}
+
 
 int main(int argc, char **argv)
 {
@@ -249,6 +274,12 @@ int main(int argc, char **argv)
 
     ros::Subscriber pidIncreaseSub = 
             node.subscribe("pid/increase", 5, onPidI);
+
+    ros::Subscriber bottomCameraSub = 
+            node.subscribe("ardrone/bottom/camera_info", 5, onBottomCamera);
+   
+    ros::Subscriber frontCameraSub = 
+            node.subscribe("ardrone/front/camera_info", 5, onFrontCamera);
 
     control.cmdPublisher =
             node.advertise<geometry_msgs::Twist>("cmd_vel", 1000);

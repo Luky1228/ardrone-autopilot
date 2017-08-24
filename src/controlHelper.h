@@ -16,8 +16,8 @@
 class PID {
  public:
     float kP, kD, kI;
-    float integralX, integralY;
-    float prevErrorX, prevErrorY;
+    float integralX, integralY, integralZ;
+    float prevErrorX, prevErrorY, prevErrorZ;
     float dt;
 
     PID(float Dt, float Kp, float Ki, float Kd): 
@@ -27,16 +27,32 @@ class PID {
         kI(Ki), 
         prevErrorX(0),
 	prevErrorY(0), 
+        prevErrorZ(0),
         integralX(0),
-        integralY(0) {}
+        integralY(0),
+        integralZ(0) {}
 
     // PID calculation. Takes the error and the flag.
-    //	If x is true, PID calcs ouput for X and for Y otherwise.
+    //	axis = 0 for x, 1 for y, 2 for z.
     
-    float calculate(float error, bool x) {
+    float calculate(float error, int axis) {
 	float prevError, integral;
-	x ? prevError = prevErrorX : prevError = prevErrorY; 
-	x ? integral = integralX : integral = integralY; 
+        switch (axis)
+        {
+        case 0:
+	    prevError = prevErrorX; 
+	    integral = integralX;
+            break;
+        case 1: 
+            prevError = prevErrorY;
+            integral = integralY;
+            break;
+        case 2:
+        default:
+            prevError = prevErrorZ;
+            integral = integralZ;
+            break;
+        }
         float outP = kP * error;
 
         integral += error * dt;
@@ -52,7 +68,6 @@ class PID {
 
         float outD = kD * derivative;
 
-	x ? integralX = integral : integralY = integral; 
         float output = outP + outI + outD;
 
 	std::cout << "--------------PID------------------\n";
@@ -67,11 +82,22 @@ class PID {
 	std::cout << "kI: " << kI << "| I: " << outI << '\n';
 	std::cout << "kD: " << kD << "| D: " << outD << '\n';
 
-	if (x)
-	    prevErrorX = error;
-	else
-	    prevErrorY = error;
-
+        switch (axis)
+        {
+        case 0:
+	    prevErrorX = error; 
+	    integralX = integral;
+            break;
+        case 1: 
+            prevErrorY = error;
+            integralY = integral;
+            break;
+        case 2:
+        default:
+            prevErrorZ = error;
+            integralZ = integral;
+            break;
+        }
 	return output;
     }   
      
@@ -100,6 +126,7 @@ class ControlCenter
 {
     public:
         bool enabled;
+        bool isBottomCamera;
         float imgRows, imgCols;
         float triCenterX, triCenterY;
         Box box;

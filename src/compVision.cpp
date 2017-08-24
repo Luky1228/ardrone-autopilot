@@ -23,6 +23,7 @@
 #include <opencv2/imgcodecs/imgcodecs.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include "imgHelper.h"
+#include "constants.h"
 using namespace cv;
 
 double getAverageColor(cv::Mat& gray, cv::Point center) {
@@ -76,32 +77,42 @@ void processImage(cv::Mat& src, CirclesMessage& msg) {
     std::vector<RotatedRect> minRect;
     std::vector<RotatedRect> minEllipse;
     // smooth it, otherwise a lot of false circles may be detected
-    cv::GaussianBlur( gray, gray, cv::Size(9, 9), 2, 2 );
+    cv::GaussianBlur(gray, gray, cv::Size(9, 9), 2, 2 );
     std::vector<cv::Vec3f> circles;
-    HoughCircles(gray, circles, CV_HOUGH_GRADIENT, 2, 20, 100, 90);
+
+    const int minRadius = 15, thres = 70;
+    HoughCircles(gray, circles, CV_HOUGH_GRADIENT, 2, 21, 100, thres, minRadius, MAXIMUM_RADIUS); // 15 = 2
     bool foundFlag = true;
     Point2f targetPoint;
-    if (circles.size() != 3)
+    if (circles.size() < 1)
     { 
         foundFlag = false;
     }
     if (foundFlag)
     {
-        for(size_t i = 0; i < circles.size(); i++ ) 
+        int targetX = 0;
+        int targetY = 0;
+        float averageRadius = 0.0;
+	for(size_t i = 0; i < circles.size(); i++ ) 
         {
+	     averageRadius += circles[i][2];
              cv::Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
+             targetX += cvRound(circles[i][0]);
+             targetY += cvRound(circles[i][1]);
              int radius = cvRound(circles[i][2]);
              // draw the circle center
              cv::circle(src, center, 3, cv::Scalar(0,255,0), -1, 8, 0 );
              // draw the circle outline
              cv::circle(src, center, radius, cv::Scalar(0,0,255), 3, 8, 0 );
         }
-        auto vc = getTargetVector(gray, circles);
+	averageRadius /= circles.size();
+	         cv::circle(src, cv::Point(src.cols / 2, src.rows /2) , averageRadius, cv::Scalar(255,255,0), 3, 8, 0 );
  //       cv::arrowedLine(src, vc.first, vc.second, cv::Scalar(255, 0, 0), 4);
-        targetPoint = vc.first;
+
+        targetPoint = Point2f(targetX / circles.size(), targetY / circles.size());
       /// Find the rotated rectangles and ellipses for each contour 
-        minRect.push_back(RotatedRect(vc.first, Size2f(50,50), 45));
-        minEllipse.push_back(RotatedRect(vc.first, Size2f(50,50), 45));
+        minRect.push_back(RotatedRect(targetPoint, Size2f(averageRadius, averageRadius), 45));
+        minEllipse.push_back(RotatedRect(targetPoint, Size2f(averageRadius, averageRadius), 45));
     }
 
   // Preparing the message
@@ -154,7 +165,7 @@ void processImage(cv::Mat& src, CirclesMessage& msg) {
            targetPoint.y > boxBottom) )
        {
            arrowedLine(drawing, camCenter, targetPoint, Scalar(255, 0, 0), 2, CV_AA);
-           msg.inTheBox[0] = false;
+           msg.inTheBox[0] = true;
        }
 
       //Draw central lines and the box.
@@ -162,5 +173,6 @@ void processImage(cv::Mat& src, CirclesMessage& msg) {
        line( drawing, leftCenter, rightCenter, Scalar(255, 0, 0), 3, 8 );
        line( drawing, bottomCenter, topCenter, Scalar(255, 0, 0), 3, 8 );
        rectangle( drawing, boxBottomLeft, boxTopRight, Scalar(100, 0, 255, 0.1), 2, CV_AA);
+//       circle(drawing, drawing.rows / 2, drawing.cols / 2, averageRadius, Scalar(255, 255, 0));
 }
 
