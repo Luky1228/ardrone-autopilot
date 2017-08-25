@@ -1,9 +1,9 @@
-//TEST PURPOSE
-/*
+
+/*  
     compVision.cpp
 
   -------------------------------------------------------------------
-  | Provides the computer vision algorithm that processes           |
+  | Provides the computer vision algorithm that processes           |     
   |  the image received from the imageHandler.cpp.                  |
   |                                                                 |
   | Sends back extracted information about the circles and the box. |
@@ -69,7 +69,7 @@ std::pair<cv::Point, cv::Point> getTargetVector(cv::Mat& gray, std::vector<cv::V
 
 // Image processing function.
 
-void processImage(cv::Mat& src, CirclesMessage& msg) {
+void processImage(cv::Mat& src, CirclesMessage& msg, const struct ImageHandler& imgHandler) {
     Point2f camCenter(src.cols / 2, src.rows / 2);
     Mat threshold_output;
     cv::Mat gray;
@@ -77,15 +77,15 @@ void processImage(cv::Mat& src, CirclesMessage& msg) {
     std::vector<RotatedRect> minRect;
     std::vector<RotatedRect> minEllipse;
     // smooth it, otherwise a lot of false circles may be detected
-    cv::GaussianBlur(gray, gray, cv::Size(9, 9), 2, 2 );
+    cv::GaussianBlur(gray, gray, cv::Size(imgHandler.blurCoeff, imgHandler.blurCoeff), 2, 2);
     std::vector<cv::Vec3f> circles;
 
-    const int minRadius = 15, thres = 70;
-    HoughCircles(gray, circles, CV_HOUGH_GRADIENT, 2, 21, 100, thres, minRadius, MAXIMUM_RADIUS); // 15 = 2
+    const int minRadius = 12;
+    HoughCircles(gray, circles, CV_HOUGH_GRADIENT, 2, 21, 100, imgHandler.threshold, minRadius, imgHandler.maxRadius); // 15 = 2
     bool foundFlag = true;
     Point2f targetPoint;
     if (circles.size() < 1)
-    {
+    { 
         foundFlag = false;
     }
     if (foundFlag)
@@ -93,7 +93,7 @@ void processImage(cv::Mat& src, CirclesMessage& msg) {
         int targetX = 0;
         int targetY = 0;
         float averageRadius = 0.0;
-	for(size_t i = 0; i < circles.size(); i++ )
+	for(size_t i = 0; i < circles.size(); i++ ) 
         {
 	     averageRadius += circles[i][2];
              cv::Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
@@ -110,7 +110,7 @@ void processImage(cv::Mat& src, CirclesMessage& msg) {
  //       cv::arrowedLine(src, vc.first, vc.second, cv::Scalar(255, 0, 0), 4);
 
         targetPoint = Point2f(targetX / circles.size(), targetY / circles.size());
-      /// Find the rotated rectangles and ellipses for each contour
+      /// Find the rotated rectangles and ellipses for each contour 
         minRect.push_back(RotatedRect(targetPoint, Size2f(averageRadius, averageRadius), 45));
         minEllipse.push_back(RotatedRect(targetPoint, Size2f(averageRadius, averageRadius), 45));
     }
@@ -128,37 +128,37 @@ void processImage(cv::Mat& src, CirclesMessage& msg) {
 
   Point2f leftCenter(0, drawing.rows / 2), rightCenter(drawing.cols, drawing.rows / 2);
   Point2f topCenter(drawing.cols / 2, 0), bottomCenter(drawing.cols / 2, drawing.rows);
-
+       
   // Here is a dynamic box implementation.
   // It changes own coords with the size of the circles.
 
     // Get circles size.
-
+    
     float circleWidth = 50, circleHeight = 50;
-
+    
     if (msg.circles.size() != 0) {
         circleWidth = msg.circles[0].size.width;
         circleHeight = msg.circles[0].size.height;
     }
-
+    
     // Calculation of the box coordinates using linear function of circles size.
-
+    
        float boxTop = std::max((float)1, drawing.rows * (-9 * circleHeight + 1900) / 4600),
 	         boxBottom = drawing.rows - boxTop,
 	         boxLeft = std::max((float)1, drawing.cols * (-9 * circleWidth + 2160) / 4600),
 	         boxRight = drawing.cols - boxLeft;
-
+       
        Point2f boxTopLeft(boxLeft, boxTop), boxTopRight(boxRight, boxTop);
        Point2f boxBottomLeft(boxLeft, boxBottom), boxBottomRight(boxRight, boxBottom);
-
+    
     // Preparing the message.
 
        msg.box.left = boxLeft;
        msg.box.right = boxRight;
        msg.box.top = boxTop;
        msg.box.bottom = boxBottom;
-
-       if (foundFlag &&
+       
+       if (foundFlag && 
            (targetPoint.x > boxRight ||
            targetPoint.x < boxLeft ||
            targetPoint.y < boxTop ||

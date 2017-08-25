@@ -1,5 +1,5 @@
-//TEST
-/*
+
+/*  
     imgHandler.cpp
   ----------------------------------------------------------------------------
   | Receives the image from the drone and sends it to the compVision.cpp,    |
@@ -22,6 +22,7 @@
 #include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/Empty.h>
 #include <geometry_msgs/Point32.h>
+#include "constants.h"
 
 // Initialize global objects to have an easy access to them.
 
@@ -35,11 +36,11 @@ static CirclesMessage cMessage;
 
 void cmsg2BoxMultiArray(CirclesMessage& cmsg, std_msgs::Float32MultiArray& boxToSend) {
         std::vector<float> vec1 = {
-                                    cmsg.box.left,
-                                    cmsg.box.right,
-                                    cmsg.box.top,
+                                    cmsg.box.left, 
+                                    cmsg.box.right, 
+                                    cmsg.box.top, 
                                     cmsg.box.bottom,
-                                    imgHandler.imgRows, imgHandler.imgCols
+                                    imgHandler.imgRows, imgHandler.imgCols 
                                   };
 
         boxToSend.data.insert(boxToSend.data.end(), vec1.begin(), vec1.end());
@@ -59,10 +60,10 @@ void cmsg2MultiArray(CirclesMessage& cmsg, std_msgs::Float32MultiArray& msg) {
                     cmsg.circles[i].size.height,
                     cmsg.inTheBox[i]
                     };
-
+            
             msg.data.insert(msg.data.end(), vec1.begin(), vec1.end());
         }
-}
+} 
 
 
 
@@ -96,14 +97,14 @@ void onImage(const sensor_msgs::Image::ConstPtr& image)
     // Image processing
 
    if (imgHandler.cv_enabled) {
-
+        
         // Process the image and get circle information to the cMessage.
         // The image sends to the compVision.cpp.
 
-        processImage(cv_ptr->image, cMessage);
-
+        processImage(cv_ptr->image, cMessage, imgHandler);
+        
         // Convert information from compVision.cpp.
-
+        
         // It's optional to recieve box information only 1 time
         //  using a bool flag to get static box.
 
@@ -152,38 +153,58 @@ void onEnable(const std_msgs::Empty& toggle_msg) {
     }
 }
 
+void onBottomCamera(const sensor_msgs::CameraInfoConstPtr& cam_info)
+{
+    imgHandler.minRadius = BC_IDEAL_RADIUS;
+    imgHandler.threshold = BC_THRESHOLD;
+    imgHandler.maxRadius = BC_MAXIMUM_RADIUS;
+    imgHandler.blurCoeff = BC_BLUR_COEFF;
+}
+
+void onFrontCamera(const sensor_msgs::CameraInfoConstPtr& cam_info)
+{
+    imgHandler.minRadius = FC_IDEAL_RADIUS;
+    imgHandler.threshold = FC_THRESHOLD;
+    imgHandler.maxRadius = FC_MAXIMUM_RADIUS;
+    imgHandler.blurCoeff = FC_BLUR_COEFF;
+}
+
 
 int main(int argc, char **argv)
 {
 
     ros::init(argc, argv, "imgproc");
     ros::NodeHandle node;
-
+    
     // Button signal subscriber
 
-    ros::Subscriber enableSub =
+    ros::Subscriber enableSub = 
             node.subscribe("cv/enable", 1, onEnable);
-
+    
     // Information publishers
 
-    imgHandler.imgPublisher =
+    imgHandler.imgPublisher = 
             node.advertise<sensor_msgs::Image>("/out/image", 5);
-
-    imgHandler.boxSendler =
+    
+    imgHandler.boxSendler = 
             node.advertise<std_msgs::Float32MultiArray>("box", 1);
-
-    imgHandler.circlePublisher =
+    
+    imgHandler.circlePublisher = 
             node.advertise<std_msgs::Float32MultiArray>("target", 5);
-
+    
 
     // Camera subscribers
 
-    ros::Subscriber sub1 =
+    ros::Subscriber sub1 = 
             node.subscribe("/in/image", 5, onImage);
-    ros::Subscriber sub2 =
+    ros::Subscriber sub2 = 
             node.subscribe("/ardrone/image_raw", 5, onImage);
-    ros::Subscriber sub3 =
+    ros::Subscriber sub3 = 
             node.subscribe("/ardrone/camera_info", 5, onCameraInfo);
+    ros::Subscriber bottomCameraSub = 
+            node.subscribe("ardrone/bottom/camera_info", 5, onBottomCamera);
+    ros::Subscriber frontCameraSub = 
+            node.subscribe("ardrone/front/camera_info", 5, onFrontCamera);
 
     ros::spin();
 
