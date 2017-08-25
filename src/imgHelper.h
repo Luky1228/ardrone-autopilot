@@ -1,5 +1,5 @@
 
-/*  
+/*
     imgHelper.h
   ---------------------------------------------------
   | Contains some utility structures and functions  |
@@ -29,11 +29,10 @@ struct CirclesMessage {
 };
 
 
-// Main structure of imageHandler.cpp, that contains 
-//  some image information, flags and publishers.
+// Main structure of imageHandler.cpp, that contains
+// some information about the image, flags and publishers
 
-struct ImageHandler
-{
+struct ImageHandler {
     float imgRows;
     float imgCols;
 
@@ -42,7 +41,7 @@ struct ImageHandler
     ros::Publisher imgPublisher;
     ros::Publisher circlePublisher;
     ros::Publisher boxSendler;
-    
+
     int minRadius;
     int threshold;
     int maxRadius;
@@ -53,12 +52,4 @@ struct ImageHandler
 };
 
 extern void processImage(cv::Mat&, CirclesMessage&, const struct ImageHandler&);
-
-
-struct CurrentCameraParams
-{
-    
-};
-
-
 
