@@ -25,6 +25,7 @@ struct Box {
 struct CirclesMessage {
     std::vector<cv::RotatedRect> circles;
     Box box;
+    float rotError;
     std::vector<bool> inTheBox;
 };
 

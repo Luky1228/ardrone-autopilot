@@ -54,7 +54,8 @@ void cmsg2MultiArray(CirclesMessage& cmsg, std_msgs::Float32MultiArray& msg) {
             cmsg.circles[i].center.y,
             cmsg.circles[i].size.width,
             cmsg.circles[i].size.height,
-            cmsg.inTheBox[i]
+            cmsg.inTheBox[i],
+            cmsg.rotError
         };
 
         msg.data.insert(msg.data.end(), vec1.begin(), vec1.end());

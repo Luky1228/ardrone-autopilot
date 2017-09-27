@@ -45,13 +45,14 @@ void parseArray(const std_msgs::Float32MultiArray& msg) {
     if (msg.data.size() != 0) {
         size_t i = 0;
         Circle circle;
-        std::cout << "parse" << std::endl;
+        //std::cout << "parse" << std::endl;
         while (i < msg.data.size()) {
             circle.x = msg.data[i++];
             circle.y = msg.data[i++];
             circle.width = msg.data[i++];
             circle.height = msg.data[i++];
             circle.inTheBox = !msg.data[i++];
+            control.rotError = msg.data[i++];
             control.targ.push_back(Circle(circle));
         }
     }
@@ -75,7 +76,7 @@ void controller(geometry_msgs::Twist& msg) {
             float Yerr = circle.y - middleY;
             errorsY.push_back(Yerr);
 
-            std::cout << "YERR : " << Yerr << " XERR: " << Xerr << "\n";
+            //std::cout << "YERR : " << Yerr << " XERR: " << Xerr << "\n";
         }
         circleRadius = circle.width;
     }
@@ -83,7 +84,7 @@ void controller(geometry_msgs::Twist& msg) {
     // X part
 
     if (errorsX.size() != 0) {
-        // Calculate average X error and normalize it to the [-1, 1] by dividing to the max error
+        //Calculate average X error and normalize it to the [-1, 1] by dividing to the max error
         float summError = 0, avError;
         size_t numError = errorsX.size();
         for (const auto& error : errorsX) {
@@ -92,19 +93,20 @@ void controller(geometry_msgs::Twist& msg) {
         }
         avError = (summError / numError) / control.box.left;
 
-        /*  It's also possible to change the PID coefficient with
-            the size of the target to make drone more accurate.
-
-            Not used, optionally. Also should be added in the Y part.
-            control.pid.kP = std::max((float)0.05, (320 - control.targ[0].width) / 1800);
-            */
-
-        // Calculate necessary acceleration (velocity indeed, but it requires double PID)
-        float acc = control.pid.calculate(avError, 0);
-
-        // Send the command to the drone (the command changes drone's tilt)
-        msg.linear.y = -acc;
+        // Calculate necessary acceleration depend on which camera is in use and send the command to the drone (the command changes drone's tilt == acceleration)
+        if (control.isBottomCamera) {
+            float vel1 = control.bottomPid.calculate(avError, 0);
+            float acc1 = control.bottomPid2.calculate(vel1, 0);
+            msg.linear.y = -acc1;
+        } else {
+            float vel1 = control.frontPid.calculate(avError, 0);
+            float acc1 = control.frontPid2.calculate(vel1, 0);
+            msg.linear.y = -acc1;
+        }
+        
     }
+
+
 
     // The Y part is similar to the X part.
     if (errorsY.size() != 0) {
@@ -115,28 +117,69 @@ void controller(geometry_msgs::Twist& msg) {
             ++numError;
         }
         avError = (summError / numError) / control.box.top;
-        float vel = control.pid.calculate(avError, 1);
         if (control.isBottomCamera) {
-            msg.linear.x = -vel;
+	    float vel2 = control.bottomPid.calculate(avError, 1);
+            float acc2 = control.bottomPid2.calculate(vel2, 1);
+            msg.linear.x = -acc2;
         } else {
-            msg.linear.z = std::min(1.0, std::max(-1.0, -vel * 10.0));
+            float vel2 = control.frontPid.calculate(avError, 1);
+            msg.linear.z = std::min(1.0, std::max(-1.0, -vel2 * 1.0));
         }
     }
 
+    // Z part
     if (circleRadius >= 1.0) {
         if (control.isBottomCamera) {
-            float vel = control.pid.calculate(std::max(-1.0, std::min(1.0, ((circleRadius - (float)BC_IDEAL_RADIUS) / (float)BC_MAXIMUM_RADIUS) * 5.0)), 2);
-            msg.linear.z = std::min(1.0, std::max(-1.0, vel * 10.0));
+            float vel3 = control.bottomPid.calculate(std::max(-1.0, std::min(1.0, ((circleRadius - (float)BC_IDEAL_RADIUS) / (float)BC_MAXIMUM_RADIUS) * 5.0)), 2);
+            msg.linear.z = std::min(1.0, std::max(-1.0, vel3 * 1.0));
         } else {
-            float vel = control.pid.calculate(std::max(-1.0, std::min(1.0, ((circleRadius - (float)FC_IDEAL_RADIUS) / (float)FC_MAXIMUM_RADIUS) * 5.0)), 2);
-            msg.linear.x = -vel;
+            float vel3 = control.frontPid.calculate(std::max(-1.0, std::min(1.0, ((circleRadius - (float)FC_IDEAL_RADIUS) / (float)FC_MAXIMUM_RADIUS) * 5.0)), 2);
+            float acc3 = control.frontPid2.calculate(vel3 * 1.0, 2);
+            msg.linear.x = -acc3;
         }
     }
+    
+    // Rotation control (only for bottom camera because of obvious reasons)
+    if (control.rotError != 0) {
+        if (control.isBottomCamera) {
+            float rotVel = control.bottomPid.calculate(control.rotError, 3);
+            std::cout << "roterror = " << control.rotError << " rotVel = " << rotVel << '\n';
+            msg.angular.z = rotVel;
+        }
+    }
+
 
     // Output sent values to the console.
     std::cout << "Command sent!\n";
-    std::cout << "Vx -> " << msg.linear.y << '\n';
-    std::cout << "Vy -> " << msg.linear.x << '\n';
+
+    /*if (msg.linear.y > 0) {
+        std::cout << "L E F T ";
+    } else if (msg.linear.y < 0) {
+        std::cout << "R I G H T ";
+    }
+
+    if (msg.linear.z > 0) {
+        std::cout << "U P " << '\n';
+    } else if (msg.linear.z < 0) {
+        std::cout << "D O W N " << '\n';
+    }*/
+
+    /*if (msg.linear.y > 0) {
+        ++(control.leftCounter);
+        std::cout << control.leftCounter << ' ' << control.rightCounter << ' ' << "L E F T " << msg.linear.y << '\n';
+    } else if (msg.linear.y < 0) {
+        ++(control.rightCounter);
+        std::cout << control.leftCounter << ' ' << control.rightCounter << ' ' << "R I G H T " << msg.linear.y << '\n';
+    }
+    if (msg.linear.z > 0) {
+        ++(control.leftCounter);
+        std::cout << control.leftCounter << ' ' << control.rightCounter << ' ' << "U P " << msg.linear.y << '\n';
+    } else if (msg.linear.z < 0) {
+        ++(control.rightCounter);
+        std::cout << control.leftCounter << ' ' << control.rightCounter << ' ' << "D O W N " << msg.linear.y << '\n';
+    }*/
+    //std::cout << "Vx -> " << msg.linear.y << '\n';
+    //std::cout << "Vy -> " << msg.linear.x << '\n';
 }
 
 // Recieve information and runs the function that controls the drone.
@@ -152,15 +195,15 @@ void onTarget(const std_msgs::Float32MultiArray& msg) {
             parseArray(msg);
 
             // Calculate delta time.
-            control.pid.dt = (ros::Time::now() - control.lastLoop).toSec();
+            control.bottomPid.dt = control.bottomPid2.dt = control.frontPid.dt = control.frontPid2.dt = (ros::Time::now() - control.lastLoop).toSec();
             control.lastLoop = ros::Time::now();
-            if (control.pid.dt > 1.0) {
+            if (control.bottomPid.dt > 1.0) {
                 return;
             }
             // Run the controller.
             controller(message);
 
-            // Circle and box information output
+            /*// Circle and box information output
             std::cout << "-----------------------\n";
             std::cout << "BOX LEFT: " << control.box.left << '\n';
             std::cout << "BOX RIGHT: " << control.box.right << '\n';
@@ -170,17 +213,32 @@ void onTarget(const std_msgs::Float32MultiArray& msg) {
             for (auto& circle : control.targ) {
                 std::cout << circle << '\n';
             }
-            std::cout << "-----------------------\n";
+            std::cout << "-----------------------\n";*/
 
             // Send the message.
             control.cmdPublisher.publish(message);
         }
     } else {
         // Reset saved information if the controller was turned off
-        control.pid.integralX = 0;
-        control.pid.integralY = 0;
-        control.pid.prevErrorX = 0;
-        control.pid.prevErrorY = 0;
+        control.bottomPid.integralX = 0;
+        control.bottomPid.integralY = 0;
+        control.bottomPid.prevErrorX = 0;
+        control.bottomPid.prevErrorY = 0;
+        
+        control.bottomPid2.integralX = 0;
+        control.bottomPid2.integralY = 0;
+        control.bottomPid2.prevErrorX = 0;
+        control.bottomPid2.prevErrorY = 0;
+        
+        control.frontPid.integralX = 0;
+        control.frontPid.integralY = 0;
+        control.frontPid.prevErrorX = 0;
+        control.frontPid.prevErrorY = 0;
+        
+        control.frontPid2.integralX = 0;
+        control.frontPid2.integralY = 0;
+        control.frontPid2.prevErrorX = 0;
+        control.frontPid2.prevErrorY = 0;
     }
 }
 
@@ -197,7 +255,7 @@ void onBox(const std_msgs::Float32MultiArray& msg) {
 
 // Increase or decrease PID coefficients using keyboard
 void onPidI(const std_msgs::String& str) {
-    switch (str.data[0]) {
+   /* switch (str.data[0]) {
         case 'p': control.pid.kP -= 0.0005; // 'F2'
                   break;
         case 'i': control.pid.kI -= 0.0005; // 'F4'
@@ -205,10 +263,11 @@ void onPidI(const std_msgs::String& str) {
         case 'd': control.pid.kD -= 0.0005; // 'F6'
                   break;
     }
+*/
 }
 
 void onPidD(const std_msgs::String& str) {
-    switch (str.data[0]) {
+  /*  switch (str.data[0]) {
         case 'p': control.pid.kP += 0.005; // 'F1'
                   break;
         case 'i': control.pid.kI += 0.001; // 'F3'
@@ -216,6 +275,7 @@ void onPidD(const std_msgs::String& str) {
         case 'd': control.pid.kD += 0.005; // 'F5'
                   break;
     }
+*/
 }
 
 
